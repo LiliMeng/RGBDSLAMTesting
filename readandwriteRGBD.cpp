@@ -66,3 +66,11 @@
             break;
 
         }
+
+
+        {   // save rgb frame
+            char fileName[1024] = {NULL};
+            sprintf(fileName, "frame_%06d.jpg", frame_index);
+            cv::imwrite(fileName, rgbImg);
+            frame_index ++;
+        }
