@@ -7,8 +7,9 @@
     return depth;
 }
  
- 
- 
+   int frame_index = 0;
+     
+    while()
     {   // save frame
             char fileName[1024] = {NULL};
             sprintf(fileName, "frame_depth_%06d.png", frame_index);
