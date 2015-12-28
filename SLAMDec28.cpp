@@ -94,40 +94,43 @@ cv::Mat readDepthImage(const char *fileName)
     return depth;
 }
 
-
 cv::Mat matToDouble(const cv::Mat& depthMap)
 {
     int row = depthMap.rows;
     int col = depthMap.cols;
+
     cv::Mat ret = cv::Mat(row, col, CV_64F);
+
     assert(depthMap.channels() == 1);
-    if(depthMap.type() == 0)
+
+    if(depthMap.type()==0)
     {
-        // unsigned char
+        //unsigned char
         for(int y = 0; y<row; y++)
         {
-            for(int x = 0; x<col; x++)
+            for(int x=0; x<col; x++)
             {
-                ret.at<double>(y, x) = depthMap.at<unsigned char>(y, x);
+                ret.at<double>(y,x) = depthMap.at<unsigned char>(y,x);
             }
         }
-
     }
     else if(depthMap.type() == 2)
     {
-        // unsigned short
-        for(int y = 0; y<row; y++)
+        //unsigned short
+        for(int y = 0; y < row; y++)
         {
-            for(int x = 0; x<col; x++)
+            for(int x =0; x<col; x++)
             {
-                ret.at<double>(y, x) = depthMap.at<unsigned short>(y, x);
+                ret.at<double>(y,x) = depthMap.at<unsigned short>(y,x);
             }
+
         }
     }
     else
     {
         assert(0);
     }
+
     return ret;
 }
 
@@ -136,20 +139,26 @@ cv::Mat matToUnsignedShort(const cv::Mat& depthMap)
     int row = depthMap.rows;
     int col = depthMap.cols;
     cv::Mat ret = cv::Mat(row, col, CV_16U);
+
+    cout<<"row "<<row<<endl;
+    cout<<"col "<<col<<endl;
+
     assert(depthMap.channels() == 1);
+
     if(depthMap.type() == 0)
     {
-        // unsigned char
-        for(int y = 0; y<row; y++)
+        //unsigned char
+        for(int y = 0; y< row; y++)
         {
-            for(int x = 0; x<col; x++)
+            for(int x = 0; x< col; x++)
             {
-                ret.at<unsigned short>(y, x) = depthMap.at<unsigned char>(y, x);
+                ret.at<unsigned short>(y, x) = depthMap.at<unsigned char>(y,x);
             }
+
         }
 
     }
-    else if(depthMap.type() == 2)
+    else if(depthMap.type()==2)
     {
         ret = depthMap;
     }
@@ -157,8 +166,10 @@ cv::Mat matToUnsignedShort(const cv::Mat& depthMap)
     {
         assert(0);
     }
+
     return ret;
 }
+
 
 int main(int argc, char * argv[])
 {
@@ -184,7 +195,7 @@ int main(int argc, char * argv[])
     intrinsicMatrix.at<double>(2,1) =0;
     intrinsicMatrix.at<double>(2,2) =1;
 
-    readRGBDdata("/home/lili/workspace/SLAM/src/rgbd_dataset_freiburg1_desk2/readData/outputAssociatedData.txt");
+    readRGBDdata("/home/lili/workspace/SLAM/src/outputAssociatedData.txt");
 
     //Bytef * decompressionBuffer = new Bytef[Resolution::getInstance().numPixels() * 2];
     //IplImage * deCompImage = 0;
@@ -199,7 +210,7 @@ int main(int argc, char * argv[])
                            true);*/
 
     cv::Mat1b tmp(height, width);
-    cv::Mat3b depthImg(height, width);
+    //cv::Mat3b depthImg(height, width);
 
     PlaceRecognition placeRecognition(&intrinsicMatrix);
 
@@ -221,18 +232,33 @@ int main(int argc, char * argv[])
         int frame_index = 0;
         odom = new FOVISOdometry;
 
-        if(frame_index<RGBDFileInfo.size())
+        if(frame_index!=RGBDFileInfo.size())
         {
             frame_index++;
 
             cv::Mat rgb_frame=cv::imread(RGBDFileInfo[frame_index].rgb_frame, 1);
             cv::Mat depth_frame1=cv::imread(RGBDFileInfo[frame_index].depth_frame, -1);
-          //  cout<<"depth_frame.type "<<depth_frame.type()<<endl;
+           // cout<<"depth_frame1.type "<<depth_frame1.type()<<endl;
             assert(depth_frame1.type() == 2 || depth_frame1.type() == 0);
             cv::Mat depth_frame = matToUnsignedShort(depth_frame1);
+          //  cout<<"depth_frame.type "<<depth_frame.type()<<endl;
 
             unsigned char *imageData = rgb_frame.data;
             unsigned short *depthData =(unsigned short*) depth_frame.data;
+
+            // test
+            {
+                for(int i = 0; i<height; i++)
+                {
+                    for(int j = 0; j<width; j++)
+                    {
+                        int  tmp = depthData[i*width + j];
+                        printf("%d\n", tmp);
+                    }
+                }
+            }
+
+            //cout<<" depthData.size() is " <<depthData.length()<<endl;
 
             uint64_t timestamp = RGBDFileInfo[frame_index].rgb_timestamp;
 
