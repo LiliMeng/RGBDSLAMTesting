@@ -140,9 +140,6 @@ cv::Mat matToUnsignedShort(const cv::Mat& depthMap)
     int col = depthMap.cols;
     cv::Mat ret = cv::Mat(row, col, CV_16U);
 
-    cout<<"row "<<row<<endl;
-    cout<<"col "<<col<<endl;
-
     assert(depthMap.channels() == 1);
 
     if(depthMap.type() == 0)
@@ -245,18 +242,6 @@ int main(int argc, char * argv[])
 
             unsigned char *imageData = rgb_frame.data;
             unsigned short *depthData =(unsigned short*) depth_frame.data;
-
-            // test
-            {
-                for(int i = 0; i<height; i++)
-                {
-                    for(int j = 0; j<width; j++)
-                    {
-                        int  tmp = depthData[i*width + j];
-                        printf("%d\n", tmp);
-                    }
-                }
-            }
 
             //cout<<" depthData.size() is " <<depthData.length()<<endl;
 
