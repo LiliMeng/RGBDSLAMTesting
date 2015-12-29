@@ -1,0 +1,419 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <vector>
+#include <string>
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include "opencv2/features2d/features2d.hpp"
+#include "opencv2/core/core.hpp"
+#include "opencv2/nonfree/nonfree.hpp"
+#include "opencv2/nonfree/features2d.hpp"
+#include "opencv2/calib3d/calib3d.hpp"
+
+#include <boost/thread/thread.hpp>
+#include <boost/shared_ptr.hpp>
+
+#include <pcl/common/common_headers.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/console/parse.h>
+#include <pcl/impl/point_types.hpp>
+#include <pcl/registration/icp_nl.h>
+#include <pcl/filters/voxel_grid.h>
+
+#include <Eigen/Geometry>
+#include <Eigen/Core>
+
+
+using namespace std;
+
+class readData{
+
+public:
+    void readRGBDFromFile(string& rgb_name1, string& depth_name1, string& rgb_name2, string& depth_name2)
+    {
+         img_1 = cv::imread(rgb_name1, CV_LOAD_IMAGE_GRAYSCALE);
+         depth_1 = cv::imread(depth_name1, -1); // CV_LOAD_IMAGE_ANYDEPTH
+
+         img_2 = cv::imread(rgb_name2, CV_LOAD_IMAGE_GRAYSCALE);
+         depth_2 = cv::imread(depth_name2, -1);
+
+         assert(depth_1.type() == 2 || depth_1.type() == 0);
+         assert(depth_2.type() == 2 || depth_2.type() == 0);
+         depth_frame11 = matToUnsignedShort(depth_1);
+         depth_frame12 = matToUnsignedShort(depth_2);
+
+         depthData1 =(unsigned short*) depth_frame11.data;
+         depthData2 =(unsigned short*) depth_frame12.data;
+
+         //assert(img_1.type()==CV_8U);
+         //assert(img_2.type()==CV_8U);
+         //assert(depth_1.type()==CV_16U);
+        // assert(depth_2.type()==CV_16U);
+
+    }
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr convertToXYZPointCloud (unsigned short * depth_image, float maxDist = 4.0f) const
+    {
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud <pcl::PointXYZ>);
+
+        register float constantx = 1.0f / fx;
+        register float constanty = 1.0f / fy;
+
+        register int centerX = (640 >> 1);
+        int centerY = (480 >> 1);
+
+        register int depth_idx = 0;
+
+        for (int v = -centerY; v < centerY; ++v)
+        {
+            for (register int u = -centerX; u < centerX; ++u, ++depth_idx)
+            {
+                //cout<<"depth_image[depth_idx] "<<depth_image[depth_idx]<<endl;
+                if(depth_image[depth_idx] != 0 && depth_image[depth_idx] < maxDist * 1000)
+                {
+                    pcl::PointXYZ pt;
+                    pt.z = depth_image[depth_idx] * 0.001f;
+                    pt.x = static_cast<float> (u) * pt.z * constantx;
+                    pt.y = static_cast<float> (v) * pt.z * constanty;
+                    cloud->push_back(pt);
+                }
+            }
+        }
+
+        cout<<"for loop in PointCloud is OK"<<endl;
+        cloud->sensor_origin_.setZero ();
+        cloud->sensor_orientation_.w () = 0.0f;
+        cloud->sensor_orientation_.x () = 1.0f;
+        cloud->sensor_orientation_.y () = 0.0f;
+        cloud->sensor_orientation_.z () = 0.0f;
+        return cloud;
+    }
+
+    cv::Mat matToUnsignedShort(const cv::Mat& depthMap)
+    {
+        int row = depthMap.rows;
+        int col = depthMap.cols;
+        cv::Mat ret = cv::Mat(row, col, CV_16U);
+
+        assert(depthMap.channels() == 1);
+
+        if(depthMap.type() == 0)
+        {
+            //unsigned char
+            for(int y = 0; y< row; y++)
+            {
+                for(int x = 0; x< col; x++)
+                {
+                    ret.at<unsigned short>(y, x) = depthMap.at<unsigned char>(y,x);
+                }
+
+            }
+
+        }
+        else if(depthMap.type()==2)
+        {
+            ret = depthMap;
+        }
+        else
+        {
+            assert(0);
+        }
+
+        return ret;
+    }
+
+
+    Eigen::Matrix4f icpDepthFrames(Eigen::Matrix4f & bootstrap, unsigned short * frame1, unsigned short * frame2, float & score)
+    {
+        cout<<"before cloud conversion is OK"<<endl;
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloudOne = convertToXYZPointCloud(frame1);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloudTwo = convertToXYZPointCloud(frame2);
+
+        cout<<"cloud conversion is OK"<<endl;
+        pcl::VoxelGrid<pcl::PointXYZ> sor;
+
+        sor.setLeafSize(0.03, 0.03, 0.03);
+
+        sor.setInputCloud(cloudOne);
+        sor.filter(*cloudOne);
+
+        sor.setInputCloud(cloudTwo);
+        sor.filter(*cloudTwo);
+
+        pcl::IterativeClosestPointNonLinear<pcl::PointXYZ, pcl::PointXYZ> icp;
+
+        pcl::PointCloud<pcl::PointXYZ>::Ptr aligned (new pcl::PointCloud <pcl::PointXYZ>);
+
+        pcl::transformPointCloud(*cloudOne, *cloudOne, bootstrap);
+
+        cout<<"transformPointCloud is OK"<<endl;
+
+        icp.setInputCloud(cloudOne);
+        icp.setInputTarget(cloudTwo);
+        icp.align(*aligned);
+
+        std::cout << "score: " << icp.getFitnessScore() << ", ";
+        std::cout.flush();
+
+        Eigen::Matrix4f d = icp.getFinalTransformation() * bootstrap;
+
+        score = icp.getFitnessScore();
+
+        return d;
+    }
+
+
+
+    void featureMatching()
+    {
+        //-- Step 1: Detect the keypoints using SURF Detector
+        int minHessian = 400;
+
+        cv::SurfFeatureDetector detector( minHessian );
+
+
+        detector.detect( img_1, keypoints_1 );
+        detector.detect( img_2, keypoints_2 );
+        //imshow( "Good Matches", img_matches );
+
+        //-- Step 2: Calculate descriptors (feature vectors)
+        cv::SurfDescriptorExtractor extractor;
+
+        cv::Mat descriptors_1, descriptors_2;
+
+        extractor.compute(img_1, keypoints_1, descriptors_1 );
+        extractor.compute(img_2, keypoints_2, descriptors_2 );
+
+
+
+        //-- Step 3: Matching descriptor vectors using FLANN matcher
+        cv::FlannBasedMatcher matcher;
+        std::vector< cv::DMatch > matches;
+
+        matcher.match( descriptors_1, descriptors_2, matches );
+
+         // compute homography using RANSAC
+        cv::Mat mask;
+        int ransacThreshold=9;
+
+        vector<cv::Point2d> imgpts1beforeRANSAC, imgpts2beforeRANSAC;
+
+        for( int i = 0; i < (int)matches.size(); i++ )
+        {
+            imgpts1beforeRANSAC.push_back(keypoints_1[matches[i].queryIdx].pt);
+            imgpts2beforeRANSAC.push_back(keypoints_2[matches[i].trainIdx].pt);
+        }
+
+         cv::Mat F12= cv::findFundamentalMat(imgpts1beforeRANSAC, imgpts2beforeRANSAC, CV_FM_RANSAC, ransacThreshold, 0.99, mask);
+        //cv::Mat H12 = cv::findHomography(imgpts1beforeRANSAC, imgpts2beforeRANSAC, CV_RANSAC, ransacThreshold, mask);
+        //cv::Mat rotationMatrix(3,3,cv::DataType<double>::type);
+        int numMatchesbeforeRANSAC=(int)matches.size();
+        cout<<"The number of matches before RANSAC"<<numMatchesbeforeRANSAC<<endl;
+
+        int numRANSACInlier=0;
+        for(int i=0; i<(int)matches.size(); i++)
+        {
+            if((int)mask.at<uchar>(i, 0) == 1)
+            {
+                numRANSACInlier+=1;
+            }
+        }
+
+        cout<<"The number of matches after RANSAC"<<numRANSACInlier<<endl;
+
+        double max_dist = 0; double min_dist = 100;
+
+        //-- Quick calculation of max and min distances between keypoints
+        for( int i = 0; i < descriptors_1.rows; i++ )
+        {
+            double dist = matches[i].distance;
+            if( dist < min_dist ) min_dist = dist;
+            if( dist > max_dist ) max_dist = dist;
+        }
+
+        printf("-- Max dist : %f \n", max_dist );
+        printf("-- Min dist : %f \n", min_dist );
+
+        //-- Draw only "good" matches (i.e. whose distance is less than 2*min_dist,
+        //-- or a small arbitary value ( 0.02 ) in the event that min_dist is very
+        //-- small)
+        //-- PS.- radiusMatch can also be used here.
+        std::vector< cv::DMatch > good_matches;
+
+        for( int i = 0; i < descriptors_1.rows; i++)
+        {
+          if( matches[i].distance <= max(3*min_dist, 0.03)&& (int)mask.at<uchar>(i, 0) == 1)  //consider RANSAC
+            { good_matches.push_back(matches[i]); }
+        }
+
+
+        vector<int> matchedKeypointsIndex1, matchedKeypointsIndex2;
+
+        vector<cv::Point2d> imgpts1, imgpts2;
+
+        for( int i = 0; i < (int)good_matches.size(); i++ )
+        {
+            printf( "-- Good Match [%d] Keypoint 1: %d  -- Keypoint 2: %d  \n", i, good_matches[i].queryIdx, good_matches[i].trainIdx );
+            matchedKeypointsIndex1.push_back(good_matches[i].queryIdx);
+            matchedKeypointsIndex2.push_back(good_matches[i].trainIdx);
+            imgpts1.push_back(keypoints_1[good_matches[i].queryIdx].pt);
+            imgpts2.push_back(keypoints_2[good_matches[i].trainIdx].pt);
+            cout<<"imgpts1[i].x "<<imgpts1[i].x<<" imgpts1[i].y "<<imgpts1[i].y<<endl;
+            cout<<"imgpts2[i].x "<<imgpts2[i].x<<" imgpts2[i].y "<<imgpts2[i].y<<endl;
+        }
+
+
+        cv::Mat K=cv::Mat(3,3,CV_64F);
+        K.at<double>(0,0)=fx;
+        K.at<double>(1,1)=fy;
+        K.at<double>(2,2)=1;
+        K.at<double>(0,2)=cx;
+        K.at<double>(1,2)=cy;
+        K.at<double>(0,1)=0;
+        K.at<double>(1,0)=0;
+        K.at<double>(2,0)=0;
+        K.at<double>(2,1)=0;
+        cout<<"Testing K" <<endl<<cv::Mat(K)<<endl;
+
+        vector<cv::Point3d>  feature_world3D_1;
+       // project the matched 2D keypoint in image1 to the 3D points in world coordinate(the camera coordinate equals to the world coordinate in this case) using back-projection
+        for(int i=0; i<(int)matchedKeypointsIndex1.size(); i++)
+         {
+            auto depthValue1 = depth_1.at<unsigned short>(keypoints_1[matchedKeypointsIndex1[i]].pt.y, keypoints_1[matchedKeypointsIndex1[i]].pt.x);
+            double worldZ1=0;
+            if(depthValue1 > min_dis && depthValue1 < max_dis )
+            {
+               worldZ1=depthValue1/factor;
+            }
+
+            double worldX1=(keypoints_1[matchedKeypointsIndex1[i]].pt.x-cx)*worldZ1/fx;
+            double worldY1=(keypoints_1[matchedKeypointsIndex1[i]].pt.y-cy)*worldZ1/fy;
+
+            cout<<i<<"th matchedKeypointsIndex1  "<<matchedKeypointsIndex1[i]<<"   worldX1  "<<worldX1<<"  worldY1   "<<worldY1<<"  worldZ1   "<<worldZ1<<endl;
+
+            //store point cloud
+            feature_world3D_1.push_back(cv::Point3d(worldX1,worldY1,worldZ1));
+        }
+
+        cv::Mat rvec(3,1,cv::DataType<double>::type);
+
+        cv::Mat t(3,1,cv::DataType<double>::type);
+
+        cv::Mat distCoeffs(4,1,cv::DataType<double>::type);
+
+        distCoeffs.at<double>(0) = 0;
+        distCoeffs.at<double>(1) = 0;
+        distCoeffs.at<double>(2) = 0;
+        distCoeffs.at<double>(3) = 0;
+
+
+
+       cv::solvePnP(feature_world3D_1, imgpts2, K, distCoeffs, rvec, t, true);
+
+       cout<<"solvePnP is OK"<<endl;
+       cv::Mat rotationMatrix(3,3,cv::DataType<double>::type);
+
+       cout<<"rvec is"<<cv::Mat(rvec)<<endl;
+
+       cv::Rodrigues(rvec, rotationMatrix);
+       cout<<"rotationMatrix is"<<cv::Mat(rotationMatrix)<<endl;
+
+       float score = 0;
+
+       Eigen::Matrix4d T;
+       T(0,0) = rotationMatrix.at<double>(0,0);
+       T(0,1) = rotationMatrix.at<double>(0,1);
+       T(0,2) = rotationMatrix.at<double>(0,2);
+       T(1,0) = rotationMatrix.at<double>(1,0);
+       T(1,1) = rotationMatrix.at<double>(1,1);
+       T(1,2) = rotationMatrix.at<double>(1,2);
+       T(2,0) = rotationMatrix.at<double>(2,0);
+       T(2,1) = rotationMatrix.at<double>(2,1);
+       T(2,2) = rotationMatrix.at<double>(2,2);
+       T(0,3) = t.at<double>(0);
+       T(1,3) = t.at<double>(1);
+       T(2,3) = t.at<double>(2);
+       T(3,0) = 0;
+       T(3,1) = 0;
+       T(3,2) = 0;
+       T(3,3) = 1;
+
+
+       Eigen::Matrix4f bootstrap = T.cast<float>().inverse();
+
+       cout<<"bootstrap is "<<bootstrap<<endl;
+
+       Eigen::Matrix4f icpTrans = icpDepthFrames(bootstrap,
+                                                  depthData1,
+                                                  depthData2,
+                                                  score);
+
+       cout<<"ICP score is "<<score<<endl;
+   }
+
+    void testing(string& rgb_name1, string& depth_name1, string& rgb_name2, string& depth_name2)
+    {
+        readRGBDFromFile(rgb_name1, depth_name1, rgb_name2, depth_name2);
+        featureMatching();
+    }
+
+    cv::Mat img_1, img_2;
+
+    cv::Mat depth_1, depth_2;
+
+    cv::Mat depth_frame11, depth_frame12;
+
+    unsigned short *depthData1;
+    unsigned short *depthData2;
+
+    //int numMatches;
+    vector<cv::KeyPoint> keypoints_1, keypoints_2;
+
+    vector<cv::DMatch > matches;
+
+        //camera parameters
+    double fx = 525.0; //focal length x
+    double fy = 525.0; //focal le
+
+    double cx = 319.5; //optical centre x
+    double cy = 239.5; //optical centre y
+
+    double min_dis = 500;
+    double max_dis = 50000;
+
+    double X1, Y1, Z1, X2, Y2, Z2;
+    double factor = 5000;
+
+
+
+
+    /* factor = 5000 for the 16-bit PNG files
+    or factor =1 for the 32-bit float images in the ROS bag files
+
+    for v in range (depth_image.height):
+    for u in range (depth_image.width):
+
+    Z = depth_image[v,u]/factor;
+    X = (u-cx) * Z / fx;
+    Y = (v-cy) * Z / fy;
+    */
+
+};
+
+int main()
+{
+    readData r;
+
+    string rgb1="/home/lili/workspace/SLAM/src/ICPTesting/329rgb.png";
+    string depth1="/home/lili/workspace/SLAM/src/ICPTesting/329.png";
+    string rgb2="/home/lili/workspace/SLAM/src/ICPTesting/330rgb.png";
+    string depth2="/home/lili/workspace/SLAM/src/ICPTesting/330.png";
+
+    r.testing(rgb1,depth1,rgb2,depth2);
+
+    return 0;
+}
