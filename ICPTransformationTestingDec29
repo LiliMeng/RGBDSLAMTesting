@@ -261,9 +261,9 @@ public:
             matchedKeypointsIndex1.push_back(good_matches[i].queryIdx);
             matchedKeypointsIndex2.push_back(good_matches[i].trainIdx);
             imgpts1.push_back(keypoints_1[good_matches[i].queryIdx].pt);
-            imgpts2.push_back(keypoints_2[good_matches[i].trainIdx].pt);
+           // imgpts2.push_back(keypoints_2[good_matches[i].trainIdx].pt);
             cout<<"imgpts1[i].x "<<imgpts1[i].x<<" imgpts1[i].y "<<imgpts1[i].y<<endl;
-            cout<<"imgpts2[i].x "<<imgpts2[i].x<<" imgpts2[i].y "<<imgpts2[i].y<<endl;
+            //cout<<"imgpts2[i].x "<<imgpts2[i].x<<" imgpts2[i].y "<<imgpts2[i].y<<endl;
         }
 
 
@@ -288,15 +288,22 @@ public:
             if(depthValue1 > min_dis && depthValue1 < max_dis )
             {
                worldZ1=depthValue1/factor;
+
+               double worldX1=(keypoints_1[matchedKeypointsIndex1[i]].pt.x-cx)*worldZ1/fx;
+               double worldY1=(keypoints_1[matchedKeypointsIndex1[i]].pt.y-cy)*worldZ1/fy;
+
+
+               cout<<i<<"th matchedKeypointsIndex1  "<<matchedKeypointsIndex1[i]<<"   worldX1  "<<worldX1<<"  worldY1   "<<worldY1<<"  worldZ1   "<<worldZ1<<endl;
+
+               //store point cloud
+              feature_world3D_1.push_back(cv::Point3d(worldX1,worldY1,worldZ1));
+
+              //2D feature
+              imgpts2.push_back(keypoints_2[matchedKeypointsIndex1[i]].pt);
+              cout<<"imgpts2[i].x "<<imgpts2[i].x<<" imgpts2[i].y "<<imgpts2[i].y<<endl;
+              //
             }
 
-            double worldX1=(keypoints_1[matchedKeypointsIndex1[i]].pt.x-cx)*worldZ1/fx;
-            double worldY1=(keypoints_1[matchedKeypointsIndex1[i]].pt.y-cy)*worldZ1/fy;
-
-            cout<<i<<"th matchedKeypointsIndex1  "<<matchedKeypointsIndex1[i]<<"   worldX1  "<<worldX1<<"  worldY1   "<<worldY1<<"  worldZ1   "<<worldZ1<<endl;
-
-            //store point cloud
-            feature_world3D_1.push_back(cv::Point3d(worldX1,worldY1,worldZ1));
         }
 
         cv::Mat rvec(3,1,cv::DataType<double>::type);
@@ -408,10 +415,10 @@ int main()
 {
     readData r;
 
-    string rgb1="/home/lili/workspace/SLAM/src/ICPTesting/330rgb.png";
-    string depth1="/home/lili/workspace/SLAM/src/ICPTesting/330depth.png";
-    string rgb2="/home/lili/workspace/SLAM/src/ICPTesting/333rgb.png";
-    string depth2="/home/lili/workspace/SLAM/src/ICPTesting/333depth.png";
+    string rgb1="/home/lili/workspace/SLAM/src/ICPTesting/329rgb.png";
+    string depth1="/home/lili/workspace/SLAM/src/ICPTesting/329depth.png";
+    string rgb2="/home/lili/workspace/SLAM/src/ICPTesting/331rgb.png";
+    string depth2="/home/lili/workspace/SLAM/src/ICPTesting/331depth.png";
 
     r.testing(rgb1,depth1,rgb2,depth2);
 
