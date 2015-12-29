@@ -408,10 +408,10 @@ int main()
 {
     readData r;
 
-    string rgb1="/home/lili/workspace/SLAM/src/ICPTesting/329rgb.png";
-    string depth1="/home/lili/workspace/SLAM/src/ICPTesting/329.png";
-    string rgb2="/home/lili/workspace/SLAM/src/ICPTesting/330rgb.png";
-    string depth2="/home/lili/workspace/SLAM/src/ICPTesting/330.png";
+    string rgb1="/home/lili/workspace/SLAM/src/ICPTesting/330rgb.png";
+    string depth1="/home/lili/workspace/SLAM/src/ICPTesting/330depth.png";
+    string rgb2="/home/lili/workspace/SLAM/src/ICPTesting/333rgb.png";
+    string depth2="/home/lili/workspace/SLAM/src/ICPTesting/333depth.png";
 
     r.testing(rgb1,depth1,rgb2,depth2);
 
