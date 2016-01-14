@@ -283,11 +283,11 @@ int main(int argc, char * argv[])
         }
     }*/
 
-    ofstream fout1("lab_FOVISJan13Trial1.txt");
-    ofstream fout2("lab_KeyframeMotionMetric0.3Jan13Trial1.txt");
-    ofstream fout3("lab_closure_transformationJan13Trial1.txt");
-    ofstream fout4("lab_pose_after_optimizationJan13Trial1.txt");
-    ofstream fout5("lab_covariance.txt1");
+    ofstream fout1("fr1xyz_FOVISJan13Trial3.txt");
+    ofstream fout2("fr1xyz_KeyframeMotionMetric0.3Jan13Trial3.txt");
+    ofstream fout3("fr1xyz_closure_transformationJan13Trial3.txt");
+    ofstream fout4("fr1xyz_pose_after_optimizationJan13Trial3.txt");
+    ofstream fout5("fr1xyz_covariance.txt3");
 
 
 
@@ -504,4 +504,3 @@ int main(int argc, char * argv[])
 
     return 0;
 }
-
